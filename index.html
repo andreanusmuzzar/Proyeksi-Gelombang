@@ -1,0 +1,1198 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Laboratorium digital untuk simulasi teori gelombang linear, transformasi gelombang, dan prakiraan laut 72 jam.">
+  <title>Laboratorium Gelombang Laut</title>
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <style>
+    :root {
+      --bg: #06111a;
+      --panel: #0b1a25;
+      --panel-2: #0e2230;
+      --panel-3: #102936;
+      --line: rgba(174, 220, 236, .13);
+      --line-strong: rgba(174, 220, 236, .25);
+      --text: #ecf8fa;
+      --muted: #8da9b3;
+      --cyan: #42d6e8;
+      --cyan-2: #0fa8c2;
+      --lime: #b8ec74;
+      --amber: #ffcb69;
+      --red: #ff746c;
+      --blue: #3a8dde;
+      --radius: 18px;
+      --shadow: 0 22px 60px rgba(0, 0, 0, .22);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background:
+        radial-gradient(circle at 78% -12%, rgba(15, 168, 194, .16), transparent 32rem),
+        var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, select { font: inherit; }
+    button { color: inherit; }
+    a { color: inherit; }
+    .app { min-height: 100vh; }
+
+    .topbar {
+      position: sticky;
+      z-index: 1000;
+      top: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      min-height: 76px;
+      padding: 14px clamp(18px, 4vw, 54px);
+      border-bottom: 1px solid var(--line);
+      background: rgba(6, 17, 26, .88);
+      backdrop-filter: blur(18px);
+    }
+    .brand { display: flex; align-items: center; gap: 13px; min-width: 0; }
+    .brand-mark {
+      display: grid;
+      width: 42px;
+      height: 42px;
+      flex: 0 0 auto;
+      place-items: center;
+      overflow: hidden;
+      border: 1px solid rgba(66, 214, 232, .35);
+      border-radius: 13px;
+      background: linear-gradient(145deg, rgba(66, 214, 232, .2), rgba(15, 168, 194, .04));
+    }
+    .brand-mark svg { width: 31px; }
+    .eyebrow {
+      margin: 0 0 3px;
+      color: var(--cyan);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+    .brand h1 { margin: 0; font-size: clamp(16px, 2vw, 20px); letter-spacing: -.02em; }
+    .top-meta { display: flex; align-items: center; gap: 12px; }
+    .status-pill, .source-pill, .mode-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,.025);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+      padding: 8px 11px;
+      white-space: nowrap;
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 12px currentColor; }
+    .status-pill.live .dot { background: var(--lime); }
+    .status-pill.demo .dot { background: var(--amber); }
+
+    .nav-wrap {
+      padding: 18px clamp(18px, 4vw, 54px) 0;
+    }
+    .tabs {
+      display: inline-flex;
+      gap: 4px;
+      padding: 5px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(9, 27, 38, .8);
+    }
+    .tab-button {
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 750;
+      padding: 10px 15px;
+      transition: .2s ease;
+    }
+    .tab-button:hover { color: var(--text); }
+    .tab-button.active { background: var(--panel-3); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
+
+    .content { padding: 20px clamp(18px, 4vw, 54px) 56px; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; animation: rise .28s ease both; }
+    @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+
+    .section-heading {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 22px;
+      margin: 4px 0 18px;
+    }
+    .section-heading h2 { margin: 0 0 6px; font-size: clamp(24px, 3vw, 34px); letter-spacing: -.045em; }
+    .section-heading p { max-width: 720px; margin: 0; color: var(--muted); line-height: 1.6; }
+
+    .sim-grid {
+      display: grid;
+      grid-template-columns: minmax(255px, 310px) minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(160deg, rgba(14, 34, 48, .96), rgba(9, 25, 35, .96));
+      box-shadow: var(--shadow);
+    }
+    .controls-panel { position: sticky; top: 96px; padding: 18px; }
+    .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; }
+    .panel-head h3 { margin: 0; font-size: 15px; }
+    .panel-kicker { color: var(--muted); font-size: 11px; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
+    .control { margin: 0 0 20px; }
+    .control.hidden { display: none; }
+    .control-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
+    .control label, .control-title { color: #cde2e7; font-size: 12px; font-weight: 680; }
+    .control output { color: var(--cyan); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; font-weight: 800; }
+    input[type="range"] {
+      width: 100%;
+      height: 4px;
+      margin: 8px 0;
+      appearance: none;
+      border-radius: 999px;
+      outline: none;
+      background: linear-gradient(90deg, var(--cyan-2), rgba(141, 169, 179, .22));
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      width: 17px; height: 17px; appearance: none; border: 3px solid var(--panel); border-radius: 50%; background: var(--cyan); box-shadow: 0 0 0 1px rgba(66,214,232,.45), 0 0 16px rgba(66,214,232,.28); cursor: grab;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 13px; height: 13px; border: 3px solid var(--panel); border-radius: 50%; background: var(--cyan); cursor: grab;
+    }
+    select, input[type="number"] {
+      width: 100%;
+      border: 1px solid var(--line-strong);
+      border-radius: 11px;
+      outline: none;
+      background: #0a1b26;
+      color: var(--text);
+      padding: 11px 12px;
+    }
+    select:focus, input[type="number"]:focus { border-color: var(--cyan-2); box-shadow: 0 0 0 3px rgba(15, 168, 194, .11); }
+    .divider { height: 1px; margin: 21px 0; background: var(--line); }
+    .button-row { display: flex; gap: 9px; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 42px;
+      border: 1px solid transparent;
+      border-radius: 11px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 800;
+      padding: 10px 14px;
+      transition: transform .16s ease, background .16s ease, border-color .16s ease;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn-primary { background: var(--cyan); color: #04202a; }
+    .btn-secondary { border-color: var(--line-strong); background: rgba(255,255,255,.03); color: var(--text); }
+    .button-row .btn { flex: 1; }
+
+    .workspace { min-width: 0; }
+    .visual-card { overflow: hidden; }
+    .visual-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .visual-toolbar p { margin: 0; color: var(--muted); font-size: 12px; }
+    .visual-toolbar strong { display: block; margin-bottom: 3px; color: var(--text); font-size: 13px; }
+    .simulation-stage { position: relative; min-height: 390px; overflow: hidden; background: #0b2230; }
+    #waveSvg { display: block; width: 100%; height: clamp(390px, 43vw, 500px); }
+    .stage-label {
+      position: absolute;
+      z-index: 2;
+      border: 1px solid rgba(255,255,255,.13);
+      border-radius: 9px;
+      background: rgba(3, 15, 22, .62);
+      color: #d7eef2;
+      font-size: 11px;
+      line-height: 1.4;
+      padding: 7px 9px;
+      backdrop-filter: blur(8px);
+      pointer-events: none;
+    }
+    .stage-label.depth { left: 16px; bottom: 16px; }
+    .stage-label.wave { right: 16px; top: 16px; }
+
+    .notice {
+      display: flex;
+      align-items: flex-start;
+      gap: 11px;
+      margin-top: 14px;
+      border: 1px solid rgba(184, 236, 116, .22);
+      border-radius: 14px;
+      background: rgba(184, 236, 116, .055);
+      color: #cfe9b0;
+      padding: 12px 14px;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .notice.warning { border-color: rgba(255, 116, 108, .35); background: rgba(255, 116, 108, .07); color: #ffc2bd; }
+    .notice-icon { font-size: 17px; line-height: 1; }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .metric {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: rgba(11, 26, 37, .88);
+      padding: 14px;
+    }
+    .metric-label { display: flex; align-items: center; justify-content: space-between; gap: 6px; color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .055em; text-transform: uppercase; }
+    .metric-value { margin-top: 8px; color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: clamp(16px, 2vw, 22px); font-weight: 800; letter-spacing: -.04em; white-space: nowrap; }
+    .metric-unit { color: var(--muted); font-size: 10px; font-weight: 650; }
+    .metric-note { margin-top: 5px; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+
+    .analysis-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(270px, .6fr);
+      gap: 14px;
+      margin-top: 14px;
+    }
+    .analysis-card { padding: 17px; }
+    .analysis-card h3 { margin: 0 0 13px; font-size: 14px; }
+    .equation-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+    .equation-item { border-radius: 12px; background: rgba(255,255,255,.025); padding: 11px; }
+    .equation-item span { display: block; color: var(--muted); font-size: 10px; }
+    .equation-item strong { display: block; margin-top: 6px; font-family: Georgia, serif; font-size: 15px; font-weight: 600; }
+
+    .compass-wrap { display: flex; align-items: center; gap: 16px; }
+    .compass {
+      position: relative;
+      width: 106px;
+      height: 106px;
+      flex: 0 0 auto;
+      border: 1px solid var(--line-strong);
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(66,214,232,.08), transparent 62%);
+    }
+    .compass::before, .compass::after { content: ""; position: absolute; background: var(--line-strong); }
+    .compass::before { left: 50%; top: 8px; bottom: 8px; width: 1px; }
+    .compass::after { top: 50%; left: 8px; right: 8px; height: 1px; }
+    .compass-letter { position: absolute; color: var(--muted); font-size: 9px; font-weight: 900; }
+    .compass-letter.n { top: 4px; left: 50%; transform: translateX(-50%); color: var(--text); }
+    .compass-letter.e { right: 6px; top: 50%; transform: translateY(-50%); }
+    .compass-letter.s { bottom: 4px; left: 50%; transform: translateX(-50%); }
+    .compass-letter.w { left: 6px; top: 50%; transform: translateY(-50%); }
+    .direction-arrow { position: absolute; z-index: 2; left: 49px; top: 15px; width: 8px; height: 76px; transform-origin: 50% 38px; transition: transform .25s ease; }
+    .direction-arrow::before { content: ""; position: absolute; top: 0; left: 0; border-right: 4px solid transparent; border-bottom: 12px solid var(--cyan); border-left: 4px solid transparent; }
+    .direction-arrow::after { content: ""; position: absolute; top: 10px; left: 3px; width: 2px; height: 54px; background: linear-gradient(var(--cyan), transparent); }
+    .direction-copy strong { display: block; margin-bottom: 5px; font-size: 17px; }
+    .direction-copy p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+
+    .forecast-layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 18px; align-items: start; }
+    .location-panel { overflow: hidden; }
+    .location-controls { padding: 16px; }
+    .input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    .input-field label { display: block; margin: 0 0 7px; color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
+    .preset-list { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+    .preset {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 7px 9px;
+    }
+    .preset:hover { border-color: var(--cyan-2); color: var(--text); }
+    #map { z-index: 1; width: 100%; height: 300px; border-top: 1px solid var(--line); background: #09202c; }
+    .map-fallback { display: grid; height: 100%; place-items: center; color: var(--muted); font-size: 12px; text-align: center; padding: 30px; }
+    .leaflet-control-attribution { font-size: 8px !important; }
+
+    .forecast-workspace { min-width: 0; }
+    .forecast-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .chart-card { margin-top: 12px; overflow: hidden; }
+    .chart-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 17px 4px; }
+    .chart-head h3 { margin: 0 0 5px; font-size: 15px; }
+    .chart-head p { margin: 0; color: var(--muted); font-size: 11px; }
+    .chart-wrap { position: relative; height: 310px; padding: 10px 14px 4px; }
+    #forecastChart { display: block; width: 100%; height: 100%; }
+    .time-control { padding: 0 17px 15px; }
+    .forecast-detail { display: grid; grid-template-columns: 1.2fr repeat(5, 1fr); gap: 1px; margin: 0 16px 16px; overflow: hidden; border: 1px solid var(--line); border-radius: 13px; background: var(--line); }
+    .detail-item { min-width: 0; background: #0b1c27; padding: 12px; }
+    .detail-item span { display: block; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+    .detail-item strong { display: block; margin-top: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; white-space: nowrap; }
+    .forecast-actions { display: flex; justify-content: flex-end; gap: 9px; padding: 0 16px 16px; }
+
+    .method-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 18px; }
+    .method-card { padding: clamp(20px, 3vw, 28px); }
+    .method-card h3 { margin: 0 0 8px; font-size: 18px; }
+    .method-card > p { margin: 0 0 18px; color: var(--muted); line-height: 1.65; }
+    .formula {
+      margin: 13px 0;
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--cyan);
+      border-radius: 13px;
+      background: rgba(255,255,255,.02);
+      padding: 15px 16px;
+    }
+    .formula strong { display: block; margin-bottom: 5px; font-family: Georgia, serif; font-size: 19px; font-weight: 500; }
+    .formula span { color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .assumption-list { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+    .assumption-list li { position: relative; border-radius: 12px; background: rgba(255,255,255,.025); color: #c6dce1; font-size: 12px; line-height: 1.55; padding: 11px 12px 11px 32px; }
+    .assumption-list li::before { content: "✓"; position: absolute; left: 12px; color: var(--lime); font-weight: 900; }
+    .method-note { margin-top: 16px; border-radius: 13px; background: rgba(255,203,105,.07); color: #f4dcae; font-size: 11px; line-height: 1.6; padding: 13px; }
+
+    .footer { display: flex; justify-content: space-between; gap: 20px; padding: 22px clamp(18px, 4vw, 54px) 30px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; line-height: 1.55; }
+
+    @media (max-width: 1120px) {
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .forecast-summary { grid-template-columns: repeat(2, 1fr); }
+      .forecast-detail { grid-template-columns: repeat(3, 1fr); }
+      .detail-item:first-child { grid-column: 1 / -1; }
+    }
+    @media (max-width: 900px) {
+      .sim-grid, .forecast-layout, .method-grid { grid-template-columns: 1fr; }
+      .controls-panel { position: static; }
+      .analysis-row { grid-template-columns: 1fr; }
+      .forecast-layout { gap: 14px; }
+    }
+    @media (max-width: 620px) {
+      .topbar { min-height: 66px; padding: 11px 16px; }
+      .top-meta .status-pill span:last-child, .source-pill { display: none; }
+      .brand-mark { width: 37px; height: 37px; }
+      .nav-wrap { padding: 13px 13px 0; overflow-x: auto; }
+      .tabs { min-width: max-content; }
+      .content { padding: 15px 13px 40px; }
+      .section-heading { align-items: flex-start; flex-direction: column; }
+      .metrics, .forecast-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .equation-grid { grid-template-columns: 1fr; }
+      .forecast-detail { grid-template-columns: 1fr 1fr; }
+      .detail-item:first-child { grid-column: 1 / -1; }
+      .visual-toolbar { align-items: flex-start; flex-direction: column; }
+      .simulation-stage { min-height: 330px; }
+      #waveSvg { height: 350px; }
+      .forecast-actions { flex-direction: column; }
+      .forecast-actions .btn { width: 100%; }
+      .footer { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 64 40" fill="none"><path d="M2 25c7-10 14-10 21 0s14 10 21 0 12-9 18-2" stroke="#42d6e8" stroke-width="4" stroke-linecap="round"/><path d="M5 34c6-6 12-6 18 0s12 6 18 0 11-6 17-1" stroke="#b8ec74" stroke-opacity=".6" stroke-width="2.5" stroke-linecap="round"/></svg>
+        </div>
+        <div>
+          <p class="eyebrow">Muzzar Wave Lab</p>
+          <h1>Laboratorium Gelombang Laut</h1>
+        </div>
+      </div>
+      <div class="top-meta">
+        <div class="source-pill">Model: Teori Gelombang Linear</div>
+        <div id="globalStatus" class="status-pill demo"><span class="dot"></span><span>Simulator siap</span></div>
+      </div>
+    </header>
+
+    <nav class="nav-wrap" aria-label="Navigasi laboratorium">
+      <div class="tabs" role="tablist">
+        <button class="tab-button active" data-tab="simulator" role="tab" aria-selected="true">01 · Simulator</button>
+        <button class="tab-button" data-tab="forecast" role="tab" aria-selected="false">02 · Prakiraan 72 jam</button>
+        <button class="tab-button" data-tab="method" role="tab" aria-selected="false">03 · Metode & asumsi</button>
+      </div>
+    </nav>
+
+    <main class="content">
+      <section id="simulator" class="tab-panel active" role="tabpanel">
+        <div class="section-heading">
+          <div>
+            <h2>Eksperimen gelombang</h2>
+            <p>Ubah kondisi gelombang dan kedalaman. Sistem menyelesaikan persamaan dispersi, mengecek batas pecah, lalu memvisualkan hasilnya secara langsung.</p>
+          </div>
+          <span id="regimePill" class="mode-pill">Perairan transisi</span>
+        </div>
+
+        <div class="sim-grid">
+          <aside class="panel controls-panel">
+            <div class="panel-head">
+              <div><div class="panel-kicker">Input model</div><h3>Parameter eksperimen</h3></div>
+              <span id="inputValidity" class="dot" title="Status validitas"></span>
+            </div>
+
+            <div class="control">
+              <div class="control-line"><label for="mode">Mode transformasi</label></div>
+              <select id="mode">
+                <option value="linear">Gelombang linear</option>
+                <option value="shoaling">Shoaling</option>
+                <option value="refraction">Shoaling + refraksi</option>
+              </select>
+            </div>
+
+            <div class="control">
+              <div class="control-line"><label id="heightLabel" for="waveHeight">Tinggi gelombang H</label><output id="waveHeightValue">2,00 m</output></div>
+              <input id="waveHeight" type="range" min="0.1" max="10" step="0.1" value="2">
+            </div>
+            <div class="control">
+              <div class="control-line"><label for="wavePeriod">Periode gelombang T</label><output id="wavePeriodValue">8,0 s</output></div>
+              <input id="wavePeriod" type="range" min="2" max="20" step="0.5" value="8">
+            </div>
+            <div class="control">
+              <div class="control-line"><label for="waterDepth">Kedalaman target h</label><output id="waterDepthValue">20 m</output></div>
+              <input id="waterDepth" type="range" min="1" max="100" step="1" value="20">
+            </div>
+            <div class="control transform-control hidden">
+              <div class="control-line"><label for="offshoreDepth">Kedalaman awal h₀</label><output id="offshoreDepthValue">80 m</output></div>
+              <input id="offshoreDepth" type="range" min="20" max="200" step="5" value="80">
+            </div>
+            <div class="control">
+              <div class="control-line"><label for="waveDirection">Arah rambat</label><output id="waveDirectionValue">135° · SE</output></div>
+              <input id="waveDirection" type="range" min="0" max="359" step="1" value="135">
+            </div>
+            <div class="control refraction-control hidden">
+              <div class="control-line"><label for="shoreNormal">Arah normal pantai</label><output id="shoreNormalValue">180° · S</output></div>
+              <input id="shoreNormal" type="range" min="0" max="359" step="1" value="180">
+            </div>
+
+            <div class="divider"></div>
+            <div class="button-row">
+              <button id="pauseButton" class="btn btn-secondary" type="button">❚❚ Jeda</button>
+              <button id="resetButton" class="btn btn-primary" type="button">↺ Reset</button>
+            </div>
+          </aside>
+
+          <div class="workspace">
+            <article class="panel visual-card">
+              <div class="visual-toolbar">
+                <div><strong>Penampang vertikal gelombang</strong><p>Partikel air mengikuti orbit teori linear; ukuran visual diskalakan agar terbaca.</p></div>
+                <span id="modeDescription" class="mode-pill">Kondisi lokal</span>
+              </div>
+              <div class="simulation-stage">
+                <svg id="waveSvg" viewBox="0 0 1000 500" preserveAspectRatio="none" role="img" aria-label="Visualisasi penampang gelombang laut">
+                  <defs>
+                    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0d3242"/><stop offset="1" stop-color="#14617a"/></linearGradient>
+                    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#087f9d" stop-opacity=".94"/><stop offset="1" stop-color="#052a3b"/></linearGradient>
+                    <linearGradient id="sand" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6d644c"/><stop offset="1" stop-color="#3a392f"/></linearGradient>
+                    <filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                  </defs>
+                  <rect width="1000" height="500" fill="url(#sky)"/>
+                  <circle cx="860" cy="68" r="34" fill="#c8f6ee" opacity=".18"/>
+                  <g opacity=".14" stroke="#d9f7f7" stroke-width="1"><path d="M0 70H1000"/><path d="M0 115H1000"/><path d="M0 160H1000"/></g>
+                  <path id="waterArea" fill="url(#sea)" d="M0 150H1000V430H0Z"/>
+                  <g id="particleLayer"></g>
+                  <path id="waveBack" fill="none" stroke="#69e3ed" stroke-opacity=".28" stroke-width="11" filter="url(#glow)"/>
+                  <path id="waveLine" fill="none" stroke="#e8ffff" stroke-width="3.5"/>
+                  <path id="seabed" fill="url(#sand)" d="M0 430H1000V500H0Z"/>
+                  <path id="seabedLine" fill="none" stroke="#bfaa76" stroke-opacity=".65" stroke-width="2" d="M0 430H1000"/>
+                  <g id="depthGauge" stroke="#d9f7f7" stroke-opacity=".65" fill="none"><path d="M55 155V425"/><path d="M45 155H65M45 425H65"/></g>
+                </svg>
+                <div id="depthLabel" class="stage-label depth">h = 20 m</div>
+                <div id="waveLabel" class="stage-label wave">H = 2,00 m · T = 8,0 s</div>
+              </div>
+            </article>
+
+            <div id="modelNotice" class="notice"><span class="notice-icon">✓</span><span>Parameter berada di bawah batas pecah menurut pendekatan Miche dan rasio kedalaman.</span></div>
+
+            <div class="metrics" aria-label="Hasil perhitungan">
+              <article class="metric"><div class="metric-label">Tinggi lokal <span class="metric-unit">H</span></div><div id="metricH" class="metric-value">2,00 m</div><div id="metricHNote" class="metric-note">Input lokal</div></article>
+              <article class="metric"><div class="metric-label">Panjang <span class="metric-unit">L</span></div><div id="metricL" class="metric-value">—</div><div class="metric-note">Dari persamaan dispersi</div></article>
+              <article class="metric"><div class="metric-label">Celerity <span class="metric-unit">C</span></div><div id="metricC" class="metric-value">—</div><div class="metric-note">Kecepatan fase</div></article>
+              <article class="metric"><div class="metric-label">Kecepatan grup <span class="metric-unit">Cg</span></div><div id="metricCg" class="metric-value">—</div><div class="metric-note">Kecepatan energi</div></article>
+              <article class="metric"><div class="metric-label">Kedalaman relatif <span class="metric-unit">h/L</span></div><div id="metricDepthRatio" class="metric-value">—</div><div id="metricRegime" class="metric-note">—</div></article>
+              <article class="metric"><div class="metric-label">Kecuraman <span class="metric-unit">H/L</span></div><div id="metricSteepness" class="metric-value">—</div><div id="metricBreakLimit" class="metric-note">—</div></article>
+              <article class="metric"><div class="metric-label">Energi rata-rata <span class="metric-unit">E</span></div><div id="metricEnergy" class="metric-value">—</div><div class="metric-note">Gelombang reguler, per m²</div></article>
+              <article class="metric"><div class="metric-label">Daya gelombang <span class="metric-unit">P</span></div><div id="metricPower" class="metric-value">—</div><div class="metric-note">Per meter puncak gelombang</div></article>
+            </div>
+
+            <div class="analysis-row">
+              <article class="panel analysis-card">
+                <h3>Jejak perhitungan</h3>
+                <div class="equation-grid">
+                  <div class="equation-item"><span>Frekuensi sudut</span><strong id="omegaValue">ω = —</strong></div>
+                  <div class="equation-item"><span>Bilangan gelombang</span><strong id="kValue">k = —</strong></div>
+                  <div class="equation-item"><span>Transformasi</span><strong id="transformValue">K = 1,000</strong></div>
+                </div>
+              </article>
+              <article class="panel analysis-card">
+                <h3>Arah hasil</h3>
+                <div class="compass-wrap">
+                  <div class="compass" aria-hidden="true">
+                    <span class="compass-letter n">N</span><span class="compass-letter e">E</span><span class="compass-letter s">S</span><span class="compass-letter w">W</span>
+                    <span id="directionArrow" class="direction-arrow"></span>
+                  </div>
+                  <div class="direction-copy"><strong id="directionResult">135° · SE</strong><p id="directionExplanation">Gelombang merambat menuju tenggara.</p></div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="forecast" class="tab-panel" role="tabpanel">
+        <div class="section-heading">
+          <div>
+            <h2>Prakiraan laut 72 jam</h2>
+            <p>Pilih titik di peta atau masukkan koordinat. Data aktual dicoba dari model kelautan global; data demonstrasi otomatis aktif jika koneksi gagal.</p>
+          </div>
+          <span id="forecastSource" class="status-pill demo"><span class="dot"></span><span>Menunggu data</span></span>
+        </div>
+
+        <div class="forecast-layout">
+          <aside class="panel location-panel">
+            <div class="location-controls">
+              <div class="panel-head"><div><div class="panel-kicker">Lokasi analisis</div><h3 id="locationName">Perairan Pontianak</h3></div></div>
+              <div class="input-grid">
+                <div class="input-field"><label for="latitude">Lintang</label><input id="latitude" type="number" min="-90" max="90" step="0.01" value="-0.10"></div>
+                <div class="input-field"><label for="longitude">Bujur</label><input id="longitude" type="number" min="-180" max="180" step="0.01" value="108.75"></div>
+              </div>
+              <div class="preset-list">
+                <button class="preset" data-name="Perairan Pontianak" data-lat="-0.10" data-lon="108.75">Pontianak</button>
+                <button class="preset" data-name="Kepulauan Karimata" data-lat="-1.55" data-lon="108.85">Karimata</button>
+                <button class="preset" data-name="Perairan Ketapang" data-lat="-2.05" data-lon="109.20">Ketapang</button>
+              </div>
+              <button id="loadForecast" class="btn btn-primary" style="width:100%;margin-top:13px" type="button">Muat prakiraan terbaru</button>
+            </div>
+            <div id="map"><div class="map-fallback">Peta sedang dimuat…<br>Kamu tetap dapat memakai koordinat manual.</div></div>
+          </aside>
+
+          <div class="forecast-workspace">
+            <div class="forecast-summary">
+              <article class="metric"><div class="metric-label">Puncak 72 jam</div><div id="summaryMax" class="metric-value">—</div><div id="summaryMaxTime" class="metric-note">—</div></article>
+              <article class="metric"><div class="metric-label">Rata-rata</div><div id="summaryAvg" class="metric-value">—</div><div class="metric-note">Tinggi gelombang</div></article>
+              <article class="metric"><div class="metric-label">Periode dominan</div><div id="summaryPeriod" class="metric-value">—</div><div class="metric-note">Rata-rata 72 jam</div></article>
+              <article class="metric"><div class="metric-label">Arah dominan</div><div id="summaryDirection" class="metric-value">—</div><div class="metric-note">Arah datang gelombang</div></article>
+            </div>
+
+            <article class="panel chart-card">
+              <div class="chart-head"><div><h3>Perubahan tinggi gelombang</h3><p>Klik atau geser penunjuk waktu untuk membaca setiap jam.</p></div><span class="mode-pill">meter</span></div>
+              <div class="chart-wrap"><canvas id="forecastChart" aria-label="Grafik tinggi gelombang selama 72 jam"></canvas></div>
+              <div class="time-control"><input id="forecastHour" type="range" min="0" max="71" step="1" value="0" aria-label="Pilih jam prakiraan"></div>
+              <div class="forecast-detail">
+                <div class="detail-item"><span>Waktu</span><strong id="detailTime">—</strong></div>
+                <div class="detail-item"><span>Gelombang</span><strong id="detailHeight">—</strong></div>
+                <div class="detail-item"><span>Periode</span><strong id="detailPeriod">—</strong></div>
+                <div class="detail-item"><span>Datang dari</span><strong id="detailDirection">—</strong></div>
+                <div class="detail-item"><span>Swell</span><strong id="detailSwell">—</strong></div>
+                <div class="detail-item"><span>Suhu laut</span><strong id="detailSst">—</strong></div>
+              </div>
+              <div class="forecast-actions">
+                <button id="downloadCsv" class="btn btn-secondary" type="button">↓ Unduh CSV</button>
+                <button id="sendToSimulator" class="btn btn-primary" type="button">Gunakan di simulator →</button>
+              </div>
+            </article>
+            <div class="notice"><span class="notice-icon">i</span><span>Prakiraan berasal dari model numerik dan memiliki ketidakpastian. Jangan gunakan aplikasi edukasi ini sebagai dasar tunggal navigasi atau keselamatan pelayaran.</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="method" class="tab-panel" role="tabpanel">
+        <div class="section-heading">
+          <div><h2>Metode yang dapat dijelaskan</h2><p>Setiap fitur dibangun dari hubungan fisik yang eksplisit.</p></div>
+        </div>
+        <div class="method-grid">
+          <article class="panel method-card">
+            <h3>Model inti</h3>
+            <p>Bilangan gelombang diselesaikan secara iteratif menggunakan Newton–Raphson. Dari nilai k, aplikasi menurunkan panjang, kecepatan fase, dan kecepatan grup.</p>
+            <div class="formula"><strong>ω² = gk tanh(kh)</strong><span>Hubungan dispersi gelombang linear pada kedalaman terbatas.</span></div>
+            <div class="formula"><strong>L = 2π/k &nbsp;·&nbsp; C = L/T</strong><span>Panjang gelombang dan kecepatan fase.</span></div>
+            <div class="formula"><strong>Cg = ½[1 + 2kh/sinh(2kh)]C</strong><span>Kecepatan grup yang membawa energi gelombang.</span></div>
+            <div class="formula"><strong>E = ⅛ρgH² &nbsp;·&nbsp; P = ECg</strong><span>Energi rata-rata gelombang reguler dan daya per meter puncak.</span></div>
+          </article>
+          <article class="panel method-card">
+            <h3>Asumsi dan batas model</h3>
+            <p>Model dibuat untuk pembelajaran awal. Kejujuran terhadap batas model lebih bernilai daripada menampilkan presisi palsu.</p>
+            <ul class="assumption-list">
+              <li>Gelombang dianggap periodik, dua dimensi, dan beramplitudo relatif kecil.</li>
+              <li>Fluida dianggap homogen, tak termampatkan, dan tidak mengalami viskositas.</li>
+              <li>Shoaling memakai konservasi fluks energi tanpa kehilangan energi.</li>
+              <li>Refraksi memakai hukum Snell dengan kontur kedalaman sejajar.</li>
+              <li>Pecah gelombang diperiksa dengan batas Miche dan rasio H/h.</li>
+              <li>API prakiraan adalah keluaran model global, bukan pengukuran buoy lokal.</li>
+            </ul>
+            <div class="method-note"><strong>Catatan penting:</strong> “Arah rambat” pada simulator menunjukkan tujuan pergerakan gelombang. API umumnya melaporkan arah asal gelombang, sehingga aplikasi membaliknya 180° ketika data dimuat ke simulator.</div>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Muzzar Wave Lab · Proyek pengenalan Teknik Kelautan</span>
+      <span>Prakiraan: Open-Meteo Marine API dan penyedia model terkait (termasuk DWD) · Peta: OpenStreetMap contributors</span>
+    </footer>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script>
+    (() => {
+      "use strict";
+
+      const G = 9.81;
+      const RHO = 1025;
+      const $ = (id) => document.getElementById(id);
+      const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+      const fmt = (value, digits = 2) => Number(value).toLocaleString("id-ID", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+      const degToRad = (degree) => degree * Math.PI / 180;
+      const radToDeg = (radian) => radian * 180 / Math.PI;
+      const normalize360 = (degree) => (degree % 360 + 360) % 360;
+      const angleDifference = (angle, reference) => ((angle - reference + 540) % 360) - 180;
+
+      const compassNames = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+      const compassWords = ["utara", "timur laut", "timur", "tenggara", "selatan", "barat daya", "barat", "barat laut"];
+      function compassIndex(degree) { return Math.round(normalize360(degree) / 45) % 8; }
+      function compass(degree) { return compassNames[compassIndex(degree)]; }
+      function compassWord(degree) { return compassWords[compassIndex(degree)]; }
+
+      const state = {
+        paused: false,
+        mode: "linear",
+        model: null,
+        forecast: [],
+        forecastIndex: 0,
+        forecastIsLive: false,
+        map: null,
+        marker: null,
+        lastFrame: performance.now(),
+        phaseTime: 0
+      };
+
+      const controls = {
+        mode: $("mode"),
+        H: $("waveHeight"),
+        T: $("wavePeriod"),
+        h: $("waterDepth"),
+        h0: $("offshoreDepth"),
+        direction: $("waveDirection"),
+        normal: $("shoreNormal")
+      };
+
+      function solveWaveNumber(T, h) {
+        const omega = 2 * Math.PI / T;
+        let k = Math.max(1e-6, omega * omega / G);
+        for (let i = 0; i < 50; i++) {
+          const kh = k * h;
+          const tanhKh = Math.tanh(kh);
+          const coshKh = Math.cosh(Math.min(350, kh));
+          const sech2 = 1 / (coshKh * coshKh);
+          const f = G * k * tanhKh - omega * omega;
+          const df = G * tanhKh + G * k * h * sech2;
+          const next = k - f / df;
+          if (!Number.isFinite(next) || next <= 0) break;
+          if (Math.abs(next - k) < 1e-11) { k = next; break; }
+          k = next;
+        }
+        return k;
+      }
+
+      function waveProperties(T, h) {
+        const omega = 2 * Math.PI / T;
+        const k = solveWaveNumber(T, h);
+        const L = 2 * Math.PI / k;
+        const C = L / T;
+        const twoKh = 2 * k * h;
+        const ratio = twoKh > 350 ? 0 : twoKh / Math.sinh(twoKh);
+        const n = 0.5 * (1 + ratio);
+        return { omega, k, L, C, Cg: n * C, n };
+      }
+
+      function calculateModel() {
+        const mode = controls.mode.value;
+        const inputH = Number(controls.H.value);
+        const T = Number(controls.T.value);
+        const h = Number(controls.h.value);
+        const requestedH0 = Number(controls.h0.value);
+        const h0 = Math.max(requestedH0, h + 1);
+        const inputDirection = Number(controls.direction.value);
+        const shoreNormal = Number(controls.normal.value);
+        const local = waveProperties(T, h);
+        const offshore = waveProperties(T, h0);
+
+        let H = inputH;
+        let outputDirection = inputDirection;
+        let Ks = 1;
+        let Kr = 1;
+        let alpha0 = 0;
+        let alpha = 0;
+
+        if (mode !== "linear") {
+          Ks = Math.sqrt(offshore.Cg / local.Cg);
+          H = inputH * Ks;
+        }
+
+        if (mode === "refraction") {
+          alpha0 = clamp(angleDifference(inputDirection, shoreNormal), -75, 75);
+          const sinAlpha = clamp((local.C / offshore.C) * Math.sin(degToRad(alpha0)), -.999, .999);
+          alpha = radToDeg(Math.asin(sinAlpha));
+          Kr = Math.sqrt(Math.max(.08, Math.cos(degToRad(alpha0))) / Math.max(.08, Math.cos(degToRad(alpha))));
+          H = inputH * Ks * Kr;
+          outputDirection = normalize360(shoreNormal + alpha);
+        }
+
+        const depthRatio = h / local.L;
+        const steepness = H / local.L;
+        const micheLimit = 0.142 * local.L * Math.tanh(local.k * h);
+        const depthLimit = 0.78 * h;
+        const breakingLimit = Math.min(micheLimit, depthLimit);
+        const isBreaking = H >= breakingLimit;
+        const regime = depthRatio < 1 / 20 ? "dangkal" : depthRatio > 1 / 2 ? "dalam" : "transisi";
+        const energy = 0.125 * RHO * G * H * H;
+        const power = energy * local.Cg / 1000;
+
+        return {
+          mode, inputH, H, T, h, h0, inputDirection, outputDirection, shoreNormal,
+          Ks, Kr, K: Ks * Kr, alpha0, alpha, isBreaking, breakingLimit, micheLimit,
+          depthLimit, depthRatio, steepness, regime, energy, power, ...local
+        };
+      }
+
+      function updateControlLabels(model) {
+        $("waveHeightValue").textContent = fmt(model.inputH, 2) + " m";
+        $("wavePeriodValue").textContent = fmt(model.T, 1) + " s";
+        $("waterDepthValue").textContent = fmt(model.h, 0) + " m";
+        $("offshoreDepthValue").textContent = fmt(Number(controls.h0.value), 0) + " m";
+        $("waveDirectionValue").textContent = fmt(model.inputDirection, 0) + "° · " + compass(model.inputDirection);
+        $("shoreNormalValue").textContent = fmt(model.shoreNormal, 0) + "° · " + compass(model.shoreNormal);
+        $("heightLabel").textContent = model.mode === "linear" ? "Tinggi gelombang H" : "Tinggi awal H₀";
+
+        document.querySelectorAll(".transform-control").forEach(el => el.classList.toggle("hidden", model.mode === "linear"));
+        document.querySelectorAll(".refraction-control").forEach(el => el.classList.toggle("hidden", model.mode !== "refraction"));
+      }
+
+      function updateResults(model) {
+        $("metricH").textContent = fmt(model.H, 2) + " m";
+        $("metricHNote").textContent = model.mode === "linear" ? "Input kondisi lokal" : "Dari H₀ = " + fmt(model.inputH, 2) + " m";
+        $("metricL").textContent = fmt(model.L, 2) + " m";
+        $("metricC").textContent = fmt(model.C, 2) + " m/s";
+        $("metricCg").textContent = fmt(model.Cg, 2) + " m/s";
+        $("metricDepthRatio").textContent = fmt(model.depthRatio, 3);
+        $("metricRegime").textContent = "Perairan " + model.regime;
+        $("metricSteepness").textContent = fmt(model.steepness, 4);
+        $("metricBreakLimit").textContent = "Batas H ≈ " + fmt(model.breakingLimit, 2) + " m";
+        $("metricEnergy").textContent = fmt(model.energy / 1000, 2) + " kJ/m²";
+        $("metricPower").textContent = fmt(model.power, 2) + " kW/m";
+        $("omegaValue").textContent = "ω = " + fmt(model.omega, 4) + " rad/s";
+        $("kValue").textContent = "k = " + fmt(model.k, 5) + " rad/m";
+        $("transformValue").textContent = model.mode === "linear" ? "K = 1,000" : "Ks·Kr = " + fmt(model.K, 3);
+        $("regimePill").textContent = "Perairan " + model.regime;
+        $("directionResult").textContent = fmt(model.outputDirection, 0) + "° · " + compass(model.outputDirection);
+        $("directionExplanation").textContent = model.mode === "refraction"
+          ? "Dibelokkan " + fmt(Math.abs(model.alpha0 - model.alpha), 1) + "° menuju " + compassWord(model.outputDirection) + "."
+          : "Gelombang merambat menuju " + compassWord(model.outputDirection) + ".";
+        $("directionArrow").style.transform = "rotate(" + model.outputDirection + "deg)";
+        $("depthLabel").textContent = "h = " + fmt(model.h, 0) + " m · h/L = " + fmt(model.depthRatio, 3);
+        $("waveLabel").textContent = "H = " + fmt(model.H, 2) + " m · T = " + fmt(model.T, 1) + " s";
+
+        const modeText = model.mode === "linear" ? "Kondisi lokal" : model.mode === "shoaling" ? "Konservasi fluks energi" : "Shoaling + hukum Snell";
+        $("modeDescription").textContent = modeText;
+
+        const notice = $("modelNotice");
+        const invalidDepth = model.mode !== "linear" && Number(controls.h0.value) <= model.h;
+        if (invalidDepth) {
+          notice.className = "notice warning";
+          notice.innerHTML = '<span class="notice-icon">!</span><span>Kedalaman awal harus lebih besar daripada kedalaman target. Model sementara memakai h₀ = h + 1 m; naikkan slider kedalaman awal.</span>';
+        } else if (model.isBreaking) {
+          notice.className = "notice warning";
+          notice.innerHTML = '<span class="notice-icon">!</span><span>Kombinasi H, T, dan h telah melewati batas pecah (H ≈ ' + fmt(model.breakingLimit, 2) + ' m). Teori gelombang linear tidak lagi valid untuk kondisi ini.</span>';
+        } else {
+          notice.className = "notice";
+          const transformText = model.mode === "linear" ? "Parameter berada" : "Hasil transformasi berada";
+          notice.innerHTML = '<span class="notice-icon">✓</span><span>' + transformText + ' di bawah batas pecah. Margin tinggi gelombang: ' + fmt(model.breakingLimit - model.H, 2) + ' m.</span>';
+        }
+        $("inputValidity").style.background = model.isBreaking || invalidDepth ? "var(--red)" : "var(--lime)";
+      }
+
+      function makeParticles() {
+        const layer = $("particleLayer");
+        layer.innerHTML = "";
+        for (let row = 0; row < 3; row++) {
+          for (let col = 0; col < 9; col++) {
+            const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            circle.setAttribute("r", row === 0 ? "3.2" : "2.5");
+            circle.setAttribute("fill", row === 0 ? "#c8ffff" : "#7ed9df");
+            circle.setAttribute("fill-opacity", String(.58 - row * .12));
+            circle.dataset.row = String(row);
+            circle.dataset.col = String(col);
+            layer.appendChild(circle);
+          }
+        }
+      }
+
+      function updateSimulationVisual(now) {
+        const model = state.model;
+        if (!model) return;
+        const delta = Math.min(.05, (now - state.lastFrame) / 1000);
+        state.lastFrame = now;
+        if (!state.paused) state.phaseTime += delta;
+
+        const horizon = 150;
+        const floorY = clamp(305 + Math.log10(model.h + 1) * 66, 330, 446);
+        const displayAmplitude = clamp(model.H / Math.max(.2, model.breakingLimit) * 54, 7, 62);
+        const cycles = clamp(1000 / (model.L * 6), 1.2, 4.5);
+        const phase = 2 * Math.PI * state.phaseTime / model.T;
+        let wavePath = "";
+        let areaPath = "M0," + horizon;
+        for (let x = 0; x <= 1000; x += 5) {
+          const y = horizon - displayAmplitude * Math.sin(2 * Math.PI * cycles * x / 1000 - phase);
+          wavePath += (x === 0 ? "M" : "L") + x.toFixed(1) + "," + y.toFixed(1);
+          areaPath += " L" + x.toFixed(1) + "," + y.toFixed(1);
+        }
+        areaPath += " L1000," + floorY + " L0," + floorY + " Z";
+        $("waveLine").setAttribute("d", wavePath);
+        $("waveBack").setAttribute("d", wavePath);
+        $("waterArea").setAttribute("d", areaPath);
+
+        let bedPath;
+        if (model.mode === "linear") {
+          bedPath = "M0 " + floorY + "H1000V500H0Z";
+        } else {
+          const leftFloor = clamp(floorY + 65, 380, 470);
+          bedPath = "M0 " + leftFloor + " C330 " + (leftFloor - 3) + ",720 " + (floorY + 28) + ",1000 " + floorY + " V500H0Z";
+        }
+        $("seabed").setAttribute("d", bedPath);
+        $("seabedLine").setAttribute("d", bedPath.split("V500")[0]);
+        $("depthGauge").innerHTML = '<path d="M55 155V' + (floorY - 5) + '"/><path d="M45 155H65M45 ' + (floorY - 5) + 'H65"/>';
+
+        const usableDepth = Math.max(80, floorY - horizon);
+        document.querySelectorAll("#particleLayer circle").forEach(circle => {
+          const row = Number(circle.dataset.row);
+          const col = Number(circle.dataset.col);
+          const baseX = 120 + col * 98;
+          const baseY = horizon + 55 + row * (usableDepth - 90) / 2;
+          const relativeDepth = (baseY - horizon) / usableDepth;
+          const attenuation = Math.exp(-2.1 * relativeDepth);
+          const particlePhase = 2 * Math.PI * cycles * baseX / 1000 - phase;
+          const orbitX = displayAmplitude * .56 * attenuation * Math.cos(particlePhase);
+          const orbitY = displayAmplitude * .42 * attenuation * Math.sin(particlePhase);
+          circle.setAttribute("cx", (baseX + orbitX).toFixed(1));
+          circle.setAttribute("cy", (baseY + orbitY).toFixed(1));
+        });
+        requestAnimationFrame(updateSimulationVisual);
+      }
+
+      function updateModel() {
+        state.model = calculateModel();
+        updateControlLabels(state.model);
+        updateResults(state.model);
+      }
+
+      Object.values(controls).forEach(control => {
+        control.addEventListener(control.tagName === "SELECT" ? "change" : "input", updateModel);
+      });
+
+      $("pauseButton").addEventListener("click", () => {
+        state.paused = !state.paused;
+        $("pauseButton").textContent = state.paused ? "▶ Putar" : "❚❚ Jeda";
+      });
+      $("resetButton").addEventListener("click", () => {
+        controls.mode.value = "linear";
+        controls.H.value = 2;
+        controls.T.value = 8;
+        controls.h.value = 20;
+        controls.h0.value = 80;
+        controls.direction.value = 135;
+        controls.normal.value = 180;
+        updateModel();
+      });
+
+      function activateTab(tabId) {
+        document.querySelectorAll(".tab-button").forEach(button => {
+          const active = button.dataset.tab === tabId;
+          button.classList.toggle("active", active);
+          button.setAttribute("aria-selected", String(active));
+        });
+        document.querySelectorAll(".tab-panel").forEach(panel => panel.classList.toggle("active", panel.id === tabId));
+        if (tabId === "forecast") {
+          initMap();
+          setTimeout(() => { if (state.map) state.map.invalidateSize(); drawForecastChart(); }, 80);
+        }
+      }
+      document.querySelectorAll(".tab-button").forEach(button => button.addEventListener("click", () => activateTab(button.dataset.tab)));
+
+      function initMap() {
+        if (state.map || !window.L) {
+          if (!window.L) $("map").innerHTML = '<div class="map-fallback">Peta tidak tersedia karena koneksi eksternal terputus.<br>Gunakan koordinat manual atau lokasi cepat.</div>';
+          return;
+        }
+        const lat = Number($("latitude").value);
+        const lon = Number($("longitude").value);
+        $("map").innerHTML = "";
+        state.map = L.map("map", { zoomControl: true, attributionControl: true }).setView([lat, lon], 6);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 18,
+          attribution: "© OpenStreetMap"
+        }).addTo(state.map);
+        state.marker = L.circleMarker([lat, lon], { radius: 7, weight: 2, color: "#06111a", fillColor: "#42d6e8", fillOpacity: 1 }).addTo(state.map);
+        state.map.on("click", event => {
+          setLocation(event.latlng.lat, event.latlng.lng, "Titik pilihan peta", false);
+        });
+      }
+
+      function setLocation(lat, lon, name, recenter = true) {
+        $("latitude").value = Number(lat).toFixed(2);
+        $("longitude").value = Number(lon).toFixed(2);
+        $("locationName").textContent = name;
+        if (state.marker) state.marker.setLatLng([lat, lon]);
+        if (state.map && recenter) state.map.setView([lat, lon], 7);
+      }
+
+      document.querySelectorAll(".preset").forEach(button => button.addEventListener("click", () => {
+        setLocation(Number(button.dataset.lat), Number(button.dataset.lon), button.dataset.name);
+      }));
+
+      [$("latitude"), $("longitude")].forEach(input => input.addEventListener("change", () => {
+        const lat = clamp(Number($("latitude").value), -90, 90);
+        const lon = clamp(Number($("longitude").value), -180, 180);
+        setLocation(lat, lon, "Koordinat manual");
+      }));
+
+      function demoForecast() {
+        const points = [];
+        const start = new Date();
+        start.setMinutes(0, 0, 0);
+        for (let i = 0; i < 72; i++) {
+          const pulse = .72 + .26 * Math.sin(i / 8) + .15 * Math.sin(i / 3.7) + .008 * i;
+          points.push({
+            time: new Date(start.getTime() + i * 3600000).toISOString(),
+            height: Math.max(.25, pulse),
+            period: 6.2 + .65 * Math.sin(i / 10),
+            direction: normalize360(285 + 22 * Math.sin(i / 15)),
+            swell: Math.max(.18, pulse * .72),
+            current: .16 + .05 * Math.sin(i / 9),
+            currentDirection: normalize360(120 + 35 * Math.sin(i / 13)),
+            sst: 29.1 + .35 * Math.sin(i / 18)
+          });
+        }
+        return points;
+      }
+
+      async function fetchForecast() {
+        const button = $("loadForecast");
+        const lat = clamp(Number($("latitude").value), -90, 90);
+        const lon = clamp(Number($("longitude").value), -180, 180);
+        button.disabled = true;
+        button.textContent = "Mengambil data…";
+        $("forecastSource").className = "status-pill demo";
+        $("forecastSource").innerHTML = '<span class="dot"></span><span>Menghubungkan model…</span>';
+        const variables = ["wave_height", "wave_direction", "wave_period", "swell_wave_height", "ocean_current_velocity", "ocean_current_direction", "sea_surface_temperature"].join(",");
+        const url = "https://marine-api.open-meteo.com/v1/marine?latitude=" + encodeURIComponent(lat) + "&longitude=" + encodeURIComponent(lon) + "&hourly=" + variables + "&forecast_hours=72&timezone=Asia%2FJakarta&cell_selection=sea";
+        try {
+          const response = await fetch(url, { signal: AbortSignal.timeout(9000) });
+          if (!response.ok) throw new Error("HTTP " + response.status);
+          const data = await response.json();
+          const hourly = data.hourly;
+          if (!hourly || !hourly.time || !hourly.wave_height) throw new Error("Format data tidak lengkap");
+          state.forecast = hourly.time.slice(0, 72).map((time, i) => ({
+            time,
+            height: Number(hourly.wave_height[i]),
+            period: Number(hourly.wave_period?.[i]),
+            direction: Number(hourly.wave_direction?.[i]),
+            swell: Number(hourly.swell_wave_height?.[i]),
+            current: Number(hourly.ocean_current_velocity?.[i]),
+            currentDirection: Number(hourly.ocean_current_direction?.[i]),
+            sst: Number(hourly.sea_surface_temperature?.[i])
+          })).filter(point => Number.isFinite(point.height));
+          if (state.forecast.length < 12) throw new Error("Titik data terlalu sedikit");
+          state.forecastIsLive = true;
+          $("forecastSource").className = "status-pill live";
+          $("forecastSource").innerHTML = '<span class="dot"></span><span>Prakiraan model terbaru</span>';
+          $("globalStatus").className = "status-pill live";
+          $("globalStatus").innerHTML = '<span class="dot"></span><span>Prakiraan diperbarui</span>';
+        } catch (error) {
+          state.forecast = demoForecast();
+          state.forecastIsLive = false;
+          $("forecastSource").className = "status-pill demo";
+          $("forecastSource").innerHTML = '<span class="dot"></span><span>Mode demonstrasi</span>';
+          $("globalStatus").className = "status-pill demo";
+          $("globalStatus").innerHTML = '<span class="dot"></span><span>Fallback demonstrasi aktif</span>';
+        } finally {
+          state.forecastIndex = 0;
+          $("forecastHour").max = Math.max(0, state.forecast.length - 1);
+          $("forecastHour").value = 0;
+          updateForecastSummary();
+          updateForecastDetail();
+          drawForecastChart();
+          button.disabled = false;
+          button.textContent = "Muat prakiraan terbaru";
+        }
+      }
+
+      function circularMean(values) {
+        const valid = values.filter(Number.isFinite);
+        if (!valid.length) return NaN;
+        const x = valid.reduce((sum, degree) => sum + Math.cos(degToRad(degree)), 0);
+        const y = valid.reduce((sum, degree) => sum + Math.sin(degToRad(degree)), 0);
+        return normalize360(radToDeg(Math.atan2(y, x)));
+      }
+
+      function dateLabel(value, includeDate = true) {
+        const date = new Date(value);
+        return date.toLocaleString("id-ID", includeDate
+          ? { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }
+          : { hour: "2-digit", minute: "2-digit" });
+      }
+
+      function average(values) {
+        const valid = values.filter(Number.isFinite);
+        return valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : NaN;
+      }
+
+      function updateForecastSummary() {
+        if (!state.forecast.length) return;
+        const maxPoint = state.forecast.reduce((best, point) => point.height > best.height ? point : best, state.forecast[0]);
+        const avgHeight = average(state.forecast.map(point => point.height));
+        const avgPeriod = average(state.forecast.map(point => point.period));
+        const meanDirection = circularMean(state.forecast.map(point => point.direction));
+        $("summaryMax").textContent = fmt(maxPoint.height, 2) + " m";
+        $("summaryMaxTime").textContent = dateLabel(maxPoint.time);
+        $("summaryAvg").textContent = fmt(avgHeight, 2) + " m";
+        $("summaryPeriod").textContent = Number.isFinite(avgPeriod) ? fmt(avgPeriod, 1) + " s" : "—";
+        $("summaryDirection").textContent = Number.isFinite(meanDirection) ? fmt(meanDirection, 0) + "° " + compass(meanDirection) : "—";
+      }
+
+      function updateForecastDetail() {
+        const point = state.forecast[state.forecastIndex];
+        if (!point) return;
+        $("detailTime").textContent = dateLabel(point.time);
+        $("detailHeight").textContent = fmt(point.height, 2) + " m";
+        $("detailPeriod").textContent = Number.isFinite(point.period) ? fmt(point.period, 1) + " s" : "—";
+        $("detailDirection").textContent = Number.isFinite(point.direction) ? fmt(point.direction, 0) + "° " + compass(point.direction) : "—";
+        $("detailSwell").textContent = Number.isFinite(point.swell) ? fmt(point.swell, 2) + " m" : "—";
+        $("detailSst").textContent = Number.isFinite(point.sst) ? fmt(point.sst, 1) + " °C" : "—";
+      }
+
+      function drawForecastChart() {
+        const canvas = $("forecastChart");
+        const rect = canvas.getBoundingClientRect();
+        if (!rect.width || !state.forecast.length) return;
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.round(rect.width * dpr);
+        canvas.height = Math.round(rect.height * dpr);
+        const ctx = canvas.getContext("2d");
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const width = rect.width;
+        const height = rect.height;
+        const pad = { left: 44, right: 18, top: 16, bottom: 34 };
+        const plotW = width - pad.left - pad.right;
+        const plotH = height - pad.top - pad.bottom;
+        const values = state.forecast.map(point => point.height);
+        const minY = Math.max(0, Math.floor(Math.min(...values) * 2) / 2 - .25);
+        const maxY = Math.ceil(Math.max(...values) * 2) / 2 + .25;
+        const range = Math.max(.5, maxY - minY);
+        const xAt = index => pad.left + index / Math.max(1, values.length - 1) * plotW;
+        const yAt = value => pad.top + (maxY - value) / range * plotH;
+
+        ctx.clearRect(0, 0, width, height);
+        ctx.font = "10px ui-sans-serif, system-ui";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+        for (let i = 0; i <= 4; i++) {
+          const value = minY + range * i / 4;
+          const y = yAt(value);
+          ctx.strokeStyle = "rgba(174,220,236,.11)";
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(width - pad.right, y); ctx.stroke();
+          ctx.fillStyle = "#76939d";
+          ctx.fillText(fmt(value, 1), pad.left - 8, y);
+        }
+
+        const gradient = ctx.createLinearGradient(0, pad.top, 0, height - pad.bottom);
+        gradient.addColorStop(0, "rgba(66,214,232,.32)");
+        gradient.addColorStop(1, "rgba(66,214,232,0)");
+        ctx.beginPath();
+        values.forEach((value, i) => i ? ctx.lineTo(xAt(i), yAt(value)) : ctx.moveTo(xAt(i), yAt(value)));
+        ctx.lineTo(xAt(values.length - 1), height - pad.bottom);
+        ctx.lineTo(xAt(0), height - pad.bottom);
+        ctx.closePath(); ctx.fillStyle = gradient; ctx.fill();
+
+        ctx.beginPath();
+        values.forEach((value, i) => i ? ctx.lineTo(xAt(i), yAt(value)) : ctx.moveTo(xAt(i), yAt(value)));
+        ctx.strokeStyle = "#42d6e8"; ctx.lineWidth = 2.5; ctx.lineJoin = "round"; ctx.stroke();
+
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillStyle = "#76939d";
+        const labelEvery = width < 600 ? 24 : 12;
+        for (let i = 0; i < values.length; i += labelEvery) {
+          ctx.fillText(dateLabel(state.forecast[i].time, false), xAt(i), height - pad.bottom + 9);
+        }
+
+        const selected = clamp(state.forecastIndex, 0, values.length - 1);
+        const sx = xAt(selected), sy = yAt(values[selected]);
+        ctx.strokeStyle = "rgba(255,203,105,.65)"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(sx, pad.top); ctx.lineTo(sx, height - pad.bottom); ctx.stroke();
+        ctx.fillStyle = "#ffcb69"; ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "#06111a"; ctx.lineWidth = 2; ctx.stroke();
+      }
+
+      $("forecastHour").addEventListener("input", event => {
+        state.forecastIndex = Number(event.target.value);
+        updateForecastDetail();
+        drawForecastChart();
+      });
+      $("forecastChart").addEventListener("click", event => {
+        if (!state.forecast.length) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        const relative = clamp((event.clientX - rect.left - 44) / Math.max(1, rect.width - 62), 0, 1);
+        state.forecastIndex = Math.round(relative * (state.forecast.length - 1));
+        $("forecastHour").value = state.forecastIndex;
+        updateForecastDetail();
+        drawForecastChart();
+      });
+      $("loadForecast").addEventListener("click", fetchForecast);
+
+      $("sendToSimulator").addEventListener("click", () => {
+        const point = state.forecast[state.forecastIndex];
+        if (!point) return;
+        controls.mode.value = "linear";
+        controls.H.value = clamp(point.height, .1, 10);
+        if (Number.isFinite(point.period)) controls.T.value = clamp(point.period, 2, 20);
+        if (Number.isFinite(point.direction)) controls.direction.value = normalize360(point.direction + 180);
+        updateModel();
+        activateTab("simulator");
+      });
+
+      $("downloadCsv").addEventListener("click", () => {
+        if (!state.forecast.length) return;
+        const rows = [["waktu", "tinggi_gelombang_m", "periode_s", "arah_datang_deg", "swell_m", "arus_kmh", "arah_arus_deg", "sst_c"]];
+        state.forecast.forEach(point => rows.push([point.time, point.height, point.period, point.direction, point.swell, point.current, point.currentDirection, point.sst]));
+        const csv = rows.map(row => row.map(value => value ?? "").join(",")).join("\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "prakiraan-gelombang-72-jam.csv";
+        link.click();
+        URL.revokeObjectURL(url);
+      });
+
+      window.addEventListener("resize", () => { if (state.forecast.length) drawForecastChart(); });
+
+      makeParticles();
+      updateModel();
+      requestAnimationFrame(updateSimulationVisual);
+      state.forecast = demoForecast();
+      updateForecastSummary();
+      updateForecastDetail();
+      setTimeout(fetchForecast, 700);
+    })();
+  </script>
+</body>
+</html>
